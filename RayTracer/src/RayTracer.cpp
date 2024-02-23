@@ -2,8 +2,9 @@
 #include "Walnut/EntryPoint.h"
 
 #include "Walnut/Image.h"
-#include "Walnut/Random.h"
 #include "Walnut/Timer.h"
+
+#include "Renderer.h"
 
 using namespace Walnut;
 
@@ -25,39 +26,30 @@ public:
 		viewportWidth = ImGui::GetContentRegionAvail().x;
 		viewportHeight = ImGui::GetContentRegionAvail().y;
 
-		if (image)
-			ImGui::Image(image->GetDescriptorSet(), { (float)image->GetWidth(), (float)image->GetHeight() }); // Renders the image with its own width/height, not the viewports
+		auto finalImage = renderer.GetFinalImage();
+		if (finalImage)
+			ImGui::Image(finalImage->GetDescriptorSet(), 
+				{ (float)finalImage->GetWidth(), (float)finalImage->GetHeight() }, // Renders the image with its own width/height, not the viewports
+				ImVec2(0,1), ImVec2(1,0)); // Reverses the y vector so 0 is at the bottom
 
 		ImGui::End();
 		ImGui::PopStyleVar();
+
+		Render();
 	}
 
 	void Render() { // Render image in viewport
 		Timer timer;
 
-		if (!image || viewportWidth != image->GetWidth() || viewportHeight != image->GetHeight() ) {
-			// RGBA is 4 bytes or 32 bits (1 byte per channel) so imageData is stored as a 32 bit ints
-			// RGBA format is 0xAABBGGRR
-			image = std::make_shared<Image>(viewportWidth, viewportHeight, ImageFormat::RGBA);
-			
-			delete[] imageData;
-			imageData = new uint32_t[viewportWidth * viewportHeight];
-		}
-
-		for (uint32_t i = 0; i < viewportWidth * viewportHeight; i++) {
-			imageData[i] = Random::UInt();
-			imageData[i] |= 0xff000000; // Set alpha to 1
-		}
-
-		image->SetData(imageData);
+		renderer.OnResize(viewportWidth, viewportHeight);
+		renderer.Render();
 
 		renderTime = timer.ElapsedMillis(); // Save the time it took to finish rendering
 	}
 
 private:
-	std::shared_ptr<Image> image;
+	Renderer renderer;
 	uint32_t viewportWidth = 0, viewportHeight = 0;
-	uint32_t* imageData = nullptr;
 	float renderTime = 0.0f;
 };
 
