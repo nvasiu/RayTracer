@@ -26,7 +26,7 @@ private:
 		int ObjectIndex;
 	};
 
-	glm::vec4 PerPixel(uint32_t x, uint32_t y, const Ray& ray);
+	glm::vec4 PerPixel(uint32_t x, uint32_t y);
 	HitObject TraceRay(const Ray& ray);
 	HitObject ClosestHit(const Ray& ray, float hitDistance, int objectIndex);
 	HitObject Miss(const Ray& ray);

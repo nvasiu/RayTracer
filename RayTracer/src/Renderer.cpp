@@ -42,18 +42,7 @@ void Renderer::Render(const Scene& scene)
 	// The outer loop uses y to be more memory friendly (row vs column)
 	for (uint32_t y = 0; y < finalImage->GetHeight(); y++) {
 		for (uint32_t x = 0; x < finalImage->GetWidth(); x++) {
-
-			// x and y coords are divided by the image resolution to map every pixel from 0 to 1
-			glm::vec2 coord = { x / (float)finalImage->GetWidth() , y / (float)finalImage->GetHeight() };
-			// this remaps coords to go from -1 to 1, so that the camera can sit at 0,0
-			coord = coord * 2.0f - 1.0f;
-
-			// Create a "camera" 
-			Ray ray;
-			ray.Origin = { 0.0f, 0.0f, 1.0f };
-			ray.Direction = { coord.x, coord.y, -1.0f };
-
-			glm::vec4 color = PerPixel(coord.x, coord.y, ray); // Get the color value for this pixel
+			glm::vec4 color = PerPixel(x, y); // Get the color value for this pixel
 			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f)); // Clamp the color values to between 0 and 1
 			imageData[x + y * finalImage->GetWidth()] = Utils::ConvertToRGBA(color);
 
@@ -64,7 +53,7 @@ void Renderer::Render(const Scene& scene)
 
 }
 
-glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y, const Ray& ray)
+glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y)
 {
 	// To get the color value at this pixel we need to solve where the ray intersects a sphere (if it does)
 
@@ -73,25 +62,51 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y, const Ray& ray)
 	// a = ray origin
 	// b = ray direction (from 0,0 to coord)
 	// t = distance where ray hits sphere
+	Ray ray;
+	ray.Origin = { 0.0f, 0.0f, 1.0f };
+	// x and y coords are divided by the image resolution to map every pixel from 0 to 1
+	glm::vec2 coord = { x / (float)finalImage->GetWidth() , y / (float)finalImage->GetHeight() };
+	coord = coord * 2.0f - 1.0f; // remap coords to go from -1 to 1, so that the ray origin can sit at 0,0
+	ray.Direction = { coord.x, coord.y, -1.0f };
 
-	Renderer::HitObject hitObj = TraceRay(ray); // Get the ray hit information including t
-	if (hitObj.HitDistance < 0.0f) return glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); // By default t = -1, which means no sphere was intersected
+	glm::vec3 finalColor(0.0f);
+	float bounceMultiplier = 1.0f;
+	glm::vec3 backgroundColor = glm::vec3(0.0f, 0.0f, 0.0f);
 
-	// Adding a light vector (from the light to the camera)
-	glm::vec3 lightDirection = glm::normalize(glm::vec3(-1, -1, -1));
-	// The shading of a point on the sphere depends on the angle of its normal vector to the light vector
-	// A dot product gives the cosine of the angle between two unit vectors (cos is between -1 and 1), which we can use as a relationship between the two vectors
-	// The light vector needs to negated to get the vector from the camera to the light so that it can be compared with the sphere normal (they are now in the same direction)
-	// cos(90) = 0, which means the point is facing 90 degrees away from the light
-	// If the angle is greater than 90 we will get a negative value, which we set to 0 instead
-	// In practice, this gives us the intensity of the color at a point depending on how much it is facing the light
-	float d = glm::max(glm::dot(hitObj.HitNormal, -lightDirection), 0.0f);
+	int bounces = 2;
+	for (int i = 0; i < bounces; i++) {
 
-	// Get the sphere that was intersected by the ray and return its color affected by the light
-	const Sphere& hitSphere = activeScene->Spheres[hitObj.ObjectIndex];
-	glm::vec3 pixelColor = hitSphere.Color;
-	pixelColor *= d;
-	return glm::vec4(pixelColor, 1.0f);
+		Renderer::HitObject hitObj = TraceRay(ray); // Get the ray hit information including t
+
+		// By default t = -1, which means no sphere was intersected	
+		if (hitObj.HitDistance < 0.0f) {
+			finalColor += backgroundColor * bounceMultiplier;
+			break;
+		}
+
+		// Adding a light vector (from the light to the camera)
+		glm::vec3 lightDirection = glm::normalize(glm::vec3(-1, -1, -1));
+		// The shading of a point on the sphere depends on the angle of its normal vector to the light vector
+		// A dot product gives the cosine of the angle between two unit vectors (cos is between -1 and 1), which we can use as a relationship between the two vectors
+		// The light vector needs to negated to get the vector from the camera to the light so that it can be compared with the sphere normal (they are now in the same direction)
+		// cos(90) = 0, which means the point is facing 90 degrees away from the light
+		// If the angle is greater than 90 we will get a negative value, which we set to 0 instead
+		// In practice, this gives us the intensity of the color at a point depending on how much it is facing the light
+		float d = glm::max(glm::dot(hitObj.HitNormal, -lightDirection), 0.0f);
+
+		// Get the sphere that was intersected by the ray and return its color affected by the light
+		const Sphere& hitSphere = activeScene->Spheres[hitObj.ObjectIndex];
+		glm::vec3 sphereColor = hitSphere.Color;
+		sphereColor *= d;
+
+		finalColor += sphereColor * bounceMultiplier;
+		bounceMultiplier *= 0.7;
+
+		ray.Origin = hitObj.HitPosition + hitObj.HitNormal * 0.0001f;
+		ray.Direction = glm::reflect(ray.Direction, hitObj.HitNormal);
+	}
+
+	return glm::vec4(finalColor, 1.0f);
 }
 
 Renderer::HitObject Renderer::TraceRay(const Ray& ray)
