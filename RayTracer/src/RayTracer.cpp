@@ -6,17 +6,54 @@
 
 #include "Renderer.h"
 
+#include <glm/gtc/type_ptr.hpp>
+
 using namespace Walnut;
 
 class ExampleLayer : public Walnut::Layer
 {
 public:
+	ExampleLayer()
+	{
+		{
+		Sphere sphere;
+		sphere.Position = { 0.0f, 0.0f, 0.0f };
+		sphere.Radius = 0.5f;
+		sphere.Color = { 0.0f, 1.0f, 0.5f };
+		scene.Spheres.push_back(sphere);
+		}
+		{
+		Sphere sphere;
+		sphere.Position = { 1.0f, 0.0f, -3.0f };
+		sphere.Radius = 3.0f;
+		sphere.Color = { 1.0f, 0.0f, 1.0f };
+		scene.Spheres.push_back(sphere);
+		}
+	}
+
 	virtual void OnUIRender() override
 	{
 		ImGui::Begin("Settings"); // SETTINGS WINDOW
 		ImGui::Text("Render time: %.3fms", renderTime);
 		if (ImGui::Button("Render")) {
 			Render();
+		}
+		ImGui::End();
+
+		ImGui::Begin("Scene"); // SCENE WINDOW
+		for (size_t i = 0; i < scene.Spheres.size(); i++) {
+
+			// Creating multiple menus with the same name will treat them all as the same menu
+			// Pushing a unique ID before creating the menus will separate them
+			ImGui::PushID(i);
+
+			Sphere& sphere = scene.Spheres[i];
+			ImGui::DragFloat3("Position", glm::value_ptr(sphere.Position), 0.1f);
+			ImGui::DragFloat("Radius", &sphere.Radius, 0.1f);
+			ImGui::ColorEdit3("Color", glm::value_ptr(sphere.Color), 0.1f);
+			ImGui::Separator();
+
+			ImGui::PopID(); // Pop ID after
 		}
 		ImGui::End();
 
@@ -42,7 +79,7 @@ public:
 		Timer timer;
 
 		renderer.OnResize(viewportWidth, viewportHeight);
-		renderer.Render();
+		renderer.Render(scene);
 
 		renderTime = timer.ElapsedMillis(); // Save the time it took to finish rendering
 	}
@@ -51,6 +88,7 @@ private:
 	Renderer renderer;
 	uint32_t viewportWidth = 0, viewportHeight = 0;
 	float renderTime = 0.0f;
+	Scene scene;
 };
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
