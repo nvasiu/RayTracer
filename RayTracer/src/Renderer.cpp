@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include <execution>
 
 namespace Utils {
 
@@ -20,6 +21,7 @@ namespace Utils {
 
 void Renderer::OnResize(uint32_t width, uint32_t height) 
 {
+	// Create the image on the first frame and recreate it when the image window is resized
 
 	if (finalImage) {
 		if (finalImage->GetWidth() == width && finalImage->GetHeight() == height) return;
@@ -30,10 +32,22 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 		finalImage = std::make_shared<Walnut::Image>(width, height, Walnut::ImageFormat::RGBA);
 	}
 
+	// Reset image data, accumulation data and image iterators
+
 	delete[] imageData;
 	imageData = new uint32_t[width * height];
+
 	delete[] accumulationData;
 	accumulationData = new glm::vec4[width * height];
+
+	imageXIterator.resize(width);
+	imageYIterator.resize(height);
+	for (uint32_t i = 0; i < width; i++) {
+		imageXIterator[i] = i;
+	}
+	for (uint32_t i = 0; i < height; i++) {
+		imageYIterator[i] = i;
+	}
 }
 
 void Renderer::Render(const Scene& scene)
@@ -44,8 +58,13 @@ void Renderer::Render(const Scene& scene)
 	if (frameIndex == 1) memset(accumulationData, 0, finalImage->GetWidth() * finalImage->GetHeight() * sizeof(glm::vec4));
 
 	// The outer loop uses y to be more memory friendly (row vs column)
-	for (uint32_t y = 0; y < finalImage->GetHeight(); y++) {
-		for (uint32_t x = 0; x < finalImage->GetWidth(); x++) {
+	// std::for_each is used instead of a for loop because it can utilize multithreading
+	// The std::execution::par argument runs iterations in parallel
+	std::for_each(std::execution::par, imageYIterator.begin(), imageYIterator.end(),
+	[this](uint32_t y) { // this needs to be captured so the x iterator is available in the lambda function
+		std::for_each(std::execution::par, imageXIterator.begin(), imageXIterator.end(),
+		[this, y](uint32_t x) {
+
 			glm::vec4 color = PerPixel(x, y); // Get the color value for this pixel
 
 			accumulationData[x + y * finalImage->GetWidth()] += color; // The color is added to the accumulated data
@@ -53,8 +72,9 @@ void Renderer::Render(const Scene& scene)
 
 			accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f)); // Clamp the color values to between 0 and 1
 			imageData[x + y * finalImage->GetWidth()] = Utils::ConvertToRGBA(accumulatedColor);
-		}
-	}
+
+		});
+	});
 
 	finalImage->SetData(imageData);
 

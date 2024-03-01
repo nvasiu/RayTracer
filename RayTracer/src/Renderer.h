@@ -3,6 +3,7 @@
 #include "Walnut/Image.h"
 #include "Walnut/Random.h"
 #include <memory>
+#include <algorithm>
 #include <glm/glm.hpp>
 #include "Scene.h"
 #include "Ray.h"
@@ -40,6 +41,9 @@ private:
 	const Scene* activeScene = nullptr;
 
 	Settings settings;
+
+	std::vector<uint32_t> imageXIterator, imageYIterator;
+
 	std::shared_ptr<Walnut::Image> finalImage;
 	uint32_t* imageData = nullptr;
 	glm::vec4* accumulationData = nullptr;
