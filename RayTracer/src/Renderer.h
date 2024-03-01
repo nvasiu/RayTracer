@@ -8,7 +8,10 @@
 #include "Ray.h"
 
 class Renderer {
-
+public:
+	struct Settings {
+		bool Accumulate = true;
+	};
 public:
 	Renderer() = default;
 
@@ -17,6 +20,8 @@ public:
 
 	std::shared_ptr<Walnut::Image> GetFinalImage() const { return finalImage; }
 
+	void ResetFrameIndex() { frameIndex = 1; }
+	Settings& GetSettings() { return settings; }
 private:
 	struct HitObject {
 		float HitDistance;
@@ -33,9 +38,11 @@ private:
 
 private:
 	const Scene* activeScene = nullptr;
-	const Ray* cameraRay = nullptr;
 
+	Settings settings;
 	std::shared_ptr<Walnut::Image> finalImage;
 	uint32_t* imageData = nullptr;
+	glm::vec4* accumulationData = nullptr;
 
+	uint32_t frameIndex = 1;
 };

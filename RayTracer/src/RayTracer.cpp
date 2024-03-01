@@ -17,16 +17,18 @@ public:
 	{
 		{
 		Sphere sphere;
-		sphere.Position = { 0.0f, 0.0f, 0.0f };
-		sphere.Radius = 0.5f;
-		sphere.Color = { 0.0f, 1.0f, 0.5f };
+		sphere.Position = { 0.0f, 0.1f, -1.8f };
+		sphere.Radius = 1.0f;
+		sphere.SphereMaterial.Albedo = { 1.0f, 1.0f, 0.0f };
+		sphere.SphereMaterial.Roughness = 0.6f;
 		scene.Spheres.push_back(sphere);
 		}
 		{
 		Sphere sphere;
-		sphere.Position = { 1.0f, 0.0f, -3.0f };
-		sphere.Radius = 3.0f;
-		sphere.Color = { 1.0f, 0.0f, 1.0f };
+		sphere.Position = { 0.0f, -101.0f, 0.0f };
+		sphere.Radius = 100.0f;
+		sphere.SphereMaterial.Albedo = { 0.0f, 0.3f, 1.0f };
+		sphere.SphereMaterial.Roughness = 0.2f;
 		scene.Spheres.push_back(sphere);
 		}
 	}
@@ -37,6 +39,12 @@ public:
 		ImGui::Text("Render time: %.3fms", renderTime);
 		if (ImGui::Button("Render")) {
 			Render();
+		}
+
+		ImGui::Checkbox("Accumulate", &renderer.GetSettings().Accumulate);
+
+		if (ImGui::Button("Reset")) {
+			renderer.ResetFrameIndex();
 		}
 		ImGui::End();
 
@@ -50,7 +58,9 @@ public:
 			Sphere& sphere = scene.Spheres[i];
 			ImGui::DragFloat3("Position", glm::value_ptr(sphere.Position), 0.1f);
 			ImGui::DragFloat("Radius", &sphere.Radius, 0.1f);
-			ImGui::ColorEdit3("Color", glm::value_ptr(sphere.Color), 0.1f);
+			ImGui::ColorEdit3("Color", glm::value_ptr(sphere.SphereMaterial.Albedo), 0.1f);
+			ImGui::DragFloat("Roughness", &sphere.SphereMaterial.Roughness, 0.1f);
+			ImGui::DragFloat("Metallic", &sphere.SphereMaterial.Metallic, 0.1f);
 			ImGui::Separator();
 
 			ImGui::PopID(); // Pop ID after

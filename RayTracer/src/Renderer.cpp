@@ -32,24 +32,34 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 
 	delete[] imageData;
 	imageData = new uint32_t[width * height];
-
+	delete[] accumulationData;
+	accumulationData = new glm::vec4[width * height];
 }
 
 void Renderer::Render(const Scene& scene)
 {
 	activeScene = &scene;
 
+	// On the first frame of accumulation make the accumulation data default to 0
+	if (frameIndex == 1) memset(accumulationData, 0, finalImage->GetWidth() * finalImage->GetHeight() * sizeof(glm::vec4));
+
 	// The outer loop uses y to be more memory friendly (row vs column)
 	for (uint32_t y = 0; y < finalImage->GetHeight(); y++) {
 		for (uint32_t x = 0; x < finalImage->GetWidth(); x++) {
 			glm::vec4 color = PerPixel(x, y); // Get the color value for this pixel
-			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f)); // Clamp the color values to between 0 and 1
-			imageData[x + y * finalImage->GetWidth()] = Utils::ConvertToRGBA(color);
 
+			accumulationData[x + y * finalImage->GetWidth()] += color; // The color is added to the accumulated data
+			glm::vec4 accumulatedColor = accumulationData[x + y * finalImage->GetWidth()] / (float)frameIndex; // The accumulated color is divided by the number of frames past
+
+			accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f)); // Clamp the color values to between 0 and 1
+			imageData[x + y * finalImage->GetWidth()] = Utils::ConvertToRGBA(accumulatedColor);
 		}
 	}
 
 	finalImage->SetData(imageData);
+
+	if (settings.Accumulate) frameIndex++;
+	else frameIndex = 1;
 
 }
 
@@ -71,9 +81,9 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y)
 
 	glm::vec3 finalColor(0.0f);
 	float bounceMultiplier = 1.0f;
-	glm::vec3 backgroundColor = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 backgroundColor = glm::vec3(0.6f, 0.7f, 0.9f);
 
-	int bounces = 2;
+	int bounces = 5;
 	for (int i = 0; i < bounces; i++) {
 
 		Renderer::HitObject hitObj = TraceRay(ray); // Get the ray hit information including t
@@ -96,14 +106,14 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y)
 
 		// Get the sphere that was intersected by the ray and return its color affected by the light
 		const Sphere& hitSphere = activeScene->Spheres[hitObj.ObjectIndex];
-		glm::vec3 sphereColor = hitSphere.Color;
+		glm::vec3 sphereColor = hitSphere.SphereMaterial.Albedo;
 		sphereColor *= d;
 
 		finalColor += sphereColor * bounceMultiplier;
-		bounceMultiplier *= 0.7;
+		bounceMultiplier *= 0.5;
 
 		ray.Origin = hitObj.HitPosition + hitObj.HitNormal * 0.0001f;
-		ray.Direction = glm::reflect(ray.Direction, hitObj.HitNormal);
+		ray.Direction = glm::reflect(ray.Direction, hitObj.HitNormal + hitSphere.SphereMaterial.Roughness*Walnut::Random::Vec3(-0.5f,0.5f)); // The reflected light is randomly offset depending on the sphere's roughness
 	}
 
 	return glm::vec4(finalColor, 1.0f);
