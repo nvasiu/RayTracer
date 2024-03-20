@@ -99,44 +99,38 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y)
 	coord = coord * 2.0f - 1.0f; // remap coords to go from -1 to 1, so that the ray origin can sit at 0,0
 	ray.Direction = { coord.x, coord.y, -1.0f };
 
-	glm::vec3 finalColor(0.0f);
-	float bounceMultiplier = 1.0f;
-	glm::vec3 backgroundColor = glm::vec3(0.6f, 0.7f, 0.9f);
+	glm::vec3 light(0.0f); // The color of the light at this pixel
+	glm::vec3 contribution(1.0f); // The color of the light of the ray as it bounces around
+	glm::vec3 backgroundColor = glm::vec3(0.8f, 0.8f, 0.8f);
 
+	// The ray will bounce off of objects while travelling to the end point (this pixel)
+	// The color of every intersected object will contribute to the color of the ray
 	int bounces = 5;
 	for (int i = 0; i < bounces; i++) {
 
 		Renderer::HitObject hitObj = TraceRay(ray); // Get the ray hit information including t
 
-		// By default t = -1, which means no sphere was intersected	
+		// By default t = -1, which means no sphere was intersected
+		// Once the ray no longer has objects to bounce off of, its accumulated color can be added to this pixel
 		if (hitObj.HitDistance < 0.0f) {
-			finalColor += backgroundColor * bounceMultiplier;
+			light += backgroundColor * contribution; // The color of the ray is affected by the background (sky) color
 			break;
 		}
 
-		// Adding a light vector (from the light to the camera)
-		glm::vec3 lightDirection = glm::normalize(glm::vec3(-1, -1, -1));
-		// The shading of a point on the sphere depends on the angle of its normal vector to the light vector
-		// A dot product gives the cosine of the angle between two unit vectors (cos is between -1 and 1), which we can use as a relationship between the two vectors
-		// The light vector needs to negated to get the vector from the camera to the light so that it can be compared with the sphere normal (they are now in the same direction)
-		// cos(90) = 0, which means the point is facing 90 degrees away from the light
-		// If the angle is greater than 90 we will get a negative value, which we set to 0 instead
-		// In practice, this gives us the intensity of the color at a point depending on how much it is facing the light
-		float d = glm::max(glm::dot(hitObj.HitNormal, -lightDirection), 0.0f);
-
-		// Get the sphere that was intersected by the ray and return its color affected by the light
+		// Get the sphere that was intersected by the ray
 		const Sphere& hitSphere = activeScene->Spheres[hitObj.ObjectIndex];
-		glm::vec3 sphereColor = hitSphere.SphereMaterial.Albedo;
-		sphereColor *= d;
+		// The color of the sphere is reflected (the ray is multiplied by the sphere's colors)
+		// Each bounce will diminish the light of the ray (light is absorbed into the sphere) because color values are <= 1
+		contribution *= hitSphere.SphereMaterial.Albedo;
 
-		finalColor += sphereColor * bounceMultiplier;
-		bounceMultiplier *= 0.5;
+		// If the intersected sphere is emissive, its light will get added to this pixel's light
+		light += hitSphere.SphereMaterial.GetEmission();
 
 		ray.Origin = hitObj.HitPosition + hitObj.HitNormal * 0.0001f;
-		ray.Direction = glm::reflect(ray.Direction, hitObj.HitNormal + hitSphere.SphereMaterial.Roughness*Walnut::Random::Vec3(-0.5f,0.5f)); // The reflected light is randomly offset depending on the sphere's roughness
+		ray.Direction = glm::normalize(hitObj.HitNormal + Walnut::Random::InUnitSphere()); // Walnut function to generate a random vector in a unit sphere, added to the ray hit normal to get a random bounce
 	}
 
-	return glm::vec4(finalColor, 1.0f);
+	return glm::vec4(light, 1.0f);
 }
 
 Renderer::HitObject Renderer::TraceRay(const Ray& ray)
